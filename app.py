@@ -1,28 +1,26 @@
-# app.py
-from fastapi import FastAPI, HTTPException
+﻿from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
 
-from interview_logic import InterviewEngine
+from interview_logic import EnhancedInterviewEngine
 from models import ExperienceLevel
 
 app = FastAPI(title="AI Interview Coach", version="1.0.0")
 
-# Add CORS middleware
+# Add CORS middleware - THIS IS CRITICAL
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
-# Initialize interview engine
-engine = InterviewEngine()
+# Initialize enhanced interview engine
+engine = EnhancedInterviewEngine()
 
-# Request/Response models
 class StartInterviewRequest(BaseModel):
     target_role: str
     experience_level: ExperienceLevel
@@ -33,8 +31,8 @@ class Answer(BaseModel):
     type: str
     topic: Optional[str] = None
     difficulty: Optional[str] = None
-    options: Optional[List[str]] = None
-    correct_answer: str
+    options: Optional[List[str]] = []
+    correct_answer: str = ""
     user_answer: str
     time_spent: Optional[float] = 0
 
