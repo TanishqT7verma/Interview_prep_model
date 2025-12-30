@@ -1,6 +1,7 @@
-﻿import re
+﻿# evaluation.py - UPDATED VERSION
+import re
 from typing import List, Dict, Any
-from models import Question, RoundResult, Feedback
+from models import Question, RoundResult, Feedback, AnswerReview
 
 class Evaluator:
     @staticmethod
@@ -66,11 +67,13 @@ class Evaluator:
     
     @staticmethod
     def generate_feedback(round_results: List[RoundResult], failed_round: int = None) -> Feedback:
-        """Generate feedback"""
+        """Generate feedback with correct answers"""
         if failed_round is not None:
             failed_result = round_results[-1]
             
             topic_stats = {}
+            correct_answers_list = []  # NEW: Store correct answers for display
+            
             for q in failed_result.questions:
                 topic = q.topic
                 if topic not in topic_stats:
@@ -78,6 +81,16 @@ class Evaluator:
                 topic_stats[topic]["total"] += 1
                 if q.is_correct:
                     topic_stats[topic]["correct"] += 1
+                
+                # ADDED: Create AnswerReview for each question
+                answer_review = AnswerReview(
+                    question=q.text,
+                    user_answer=q.user_answer or "No answer",
+                    correct_answer=q.correct_answer,
+                    topic=q.topic,
+                    is_correct=q.is_correct or False
+                )
+                correct_answers_list.append(answer_review)
             
             topic_scores = {topic: (stats["correct"]/stats["total"])*100 
                           for topic, stats in topic_stats.items()}
@@ -96,6 +109,7 @@ class Evaluator:
                 score=failed_result.score,
                 strongest_topics=[t[0] for t in strongest],
                 weakest_topics=[t[0] for t in weakest],
+                correct_answers=correct_answers_list,  # ADDED THIS
                 recommendations=recommendations,
                 time_spent={f"round_{failed_round}": failed_result.time_spent}
             )
@@ -106,6 +120,8 @@ class Evaluator:
             overall_score = total_score / total_questions
             
             all_topics = {}
+            correct_answers_list = []  # NEW: For completed interview
+            
             for result in round_results:
                 for q in result.questions:
                     topic = q.topic
@@ -114,6 +130,16 @@ class Evaluator:
                     all_topics[topic]["total"] += 1
                     if q.is_correct:
                         all_topics[topic]["correct"] += 1
+                    
+                    # ADDED: For completed interview, include all questions
+                    answer_review = AnswerReview(
+                        question=q.text,
+                        user_answer=q.user_answer or "No answer",
+                        correct_answer=q.correct_answer,
+                        topic=q.topic,
+                        is_correct=q.is_correct or False
+                    )
+                    correct_answers_list.append(answer_review)
             
             topic_scores = {topic: (stats["correct"]/stats["total"])*100 
                           for topic, stats in all_topics.items()}
@@ -133,6 +159,7 @@ class Evaluator:
                 score=round(overall_score, 2),
                 strongest_topics=[t[0] for t in strongest],
                 weakest_topics=[t[0] for t in weakest],
+                correct_answers=correct_answers_list,  # ADDED THIS
                 recommendations=recommendations,
                 time_spent=time_spent
             )

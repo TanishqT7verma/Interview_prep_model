@@ -48,6 +48,13 @@ class InterviewSession(BaseModel):
     completed_rounds: List[RoundResult] = []
     is_complete: bool = False
 
+class AnswerReview(BaseModel):
+    question: str
+    user_answer: str
+    correct_answer: str
+    topic: str
+    is_correct: bool
+    
 class Feedback(BaseModel):
     score: float
     strongest_topics: List[str]
