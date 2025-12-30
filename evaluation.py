@@ -1,4 +1,4 @@
-﻿import re
+import re
 import requests
 from typing import List, Dict, Any
 from models import Question, RoundResult, Feedback
@@ -218,4 +218,4 @@ class Evaluator:
                 f"Consider practicing {weakest[0] if weakest else 'various topics'}"
             ],
             time_spent=time_spent
-        )
+
