@@ -1,0 +1,236 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Interview Coach</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 10px; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        select, input { width: 100%; padding: 8px; margin: 5px 0; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .question { background: white; padding: 15px; margin: 10px 0; border-left: 4px solid #007bff; }
+        .options { margin: 10px 0; }
+        .option { margin: 5px 0; }
+        .result { background: #e8f5e8; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .error { background: #ffe8e8; padding: 15px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI Interview Coach</h1>
+        
+        <div id="setup">
+            <h2>Interview Setup</h2>
+            <div class="form-group">
+                <label>Target Role:</label>
+                <select id="role">
+                    <option value="Software Engineer">Software Engineer</option>
+                    <option value="Data Scientist">Data Scientist</option>
+                    <option value="Data Analyst">Data Analyst</option>
+                    <option value="Product Manager">Product Manager</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Experience Level:</label>
+                <select id="level">
+                    <option value="entry">Entry Level</option>
+                    <option value="mid" selected>Mid Level</option>
+                    <option value="senior">Senior Level</option>
+                </select>
+            </div>
+            
+            <button onclick="startInterview()">Start Interview</button>
+        </div>
+        
+        <div id="interview" style="display: none;">
+            <h2>Round <span id="round-number">1</span></h2>
+            <p>Session ID: <span id="session-id"></span></p>
+            
+            <div id="questions-container"></div>
+            
+            <button onclick="submitRound()">Submit Answers</button>
+            <button onclick="restartInterview()" style="background: #6c757d;">Restart</button>
+        </div>
+        
+        <div id="results" style="display: none;"></div>
+    </div>
+
+    <script>
+        let currentSession = null;
+        let currentRound = 1;
+        let currentQuestions = [];  // ADDED: Store questions here
+        const API_BASE = 'http://localhost:8000';
+        
+        async function startInterview() {
+            const role = document.getElementById('role').value;
+            const level = document.getElementById('level').value;
+            
+            try {
+                const response = await fetch(API_BASE + '/start', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        target_role: role, 
+                        experience_level: level 
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                console.log('Start response:', data);
+                
+                if (data.session_id) {
+                    currentSession = data.session_id;
+                    currentQuestions = data.questions || [];  // STORE QUESTIONS HERE
+                    document.getElementById('session-id').textContent = data.session_id.substring(0, 8) + '...';
+                    document.getElementById('setup').style.display = 'none';
+                    document.getElementById('interview').style.display = 'block';
+                    
+                    displayQuestions(currentQuestions);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error starting interview: ' + error.message);
+                console.error('Start error:', error);
+            }
+        }
+        
+        function displayQuestions(questions) {
+            const container = document.getElementById('questions-container');
+            container.innerHTML = '';
+            
+            questions.forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'question';
+                questionDiv.innerHTML = `
+                    <h3>Question ${index + 1}</h3>
+                    <p><strong>Topic:</strong> ${q.topic || 'General'} | <strong>Difficulty:</strong> ${q.difficulty || 'Medium'}</p>
+                    <p>${q.text}</p>
+                    ${q.options ? `
+                        <div class="options">
+                            ${q.options.map((opt, i) => `
+                                <div class="option">
+                                    <input type="radio" name="q${index}" value="${opt}" id="q${index}_${i}">
+                                    <label for="q${index}_${i}">${opt}</label>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : `
+                        <input type="text" id="q${index}" placeholder="Your answer..." style="width: 100%; padding: 8px;">
+                    `}
+                `;
+                container.appendChild(questionDiv);
+            });
+        }
+        
+        async function submitRound() {
+            // Collect answers - FIXED VERSION
+            const answers = [];
+            
+            currentQuestions.forEach((q, index) => {
+                const radio = document.querySelector(`input[name="q${index}"]:checked`);
+                const textInput = document.getElementById(`q${index}`);
+                const userAnswer = radio ? radio.value : (textInput ? textInput.value : '');
+                
+                // FIX: Include ALL required fields from the stored question
+                answers.push({
+                    question_id: q.id || `q${index}`,  // Use actual ID from question
+                    question_text: q.text || `Question ${index + 1}`,
+                    type: q.type || "one_word",
+                    topic: q.topic || "General",
+                    difficulty: q.difficulty || "medium",
+                    options: q.options || [],
+                    correct_answer: q.correct_answer || "",
+                    user_answer: userAnswer,
+                    time_spent: 0
+                });
+            });
+            
+            // Debug: Check what we're sending
+            console.log("Sending answers:", answers);
+            
+            // Submit to backend
+            try {
+                const response = await fetch(API_BASE + '/submit', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSession,
+                        answers: answers,
+                        time_spent: 300 // 5 minutes for example
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+                
+                const data = await response.json();
+                showResults(data);
+            } catch (error) {
+                alert('Error submitting answers: ' + error.message);
+                console.error('Submit error:', error);
+            }
+        }
+        
+        function showResults(data) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            resultsDiv.style.display = 'block';
+            
+            if (data.status === 'failed') {
+                resultsDiv.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Round ${data.round} Failed</h3>
+                        <p>Score: ${data.score}% (Required: ${data.passing_score}%)</p>
+                        ${data.feedback ? `<p>Feedback: ${JSON.stringify(data.feedback)}</p>` : ''}
+                    </div>
+                `;
+            } else if (data.status === 'completed') {
+                resultsDiv.innerHTML = `
+                    <div class="result">
+                        <h3>🎉 Interview Completed!</h3>
+                        <p>Final Score: ${data.score}%</p>
+                        <button onclick="restartInterview()">Start New Interview</button>
+                    </div>
+                `;
+                document.getElementById('interview').style.display = 'none';
+            } else if (data.status === 'next_round') {
+                resultsDiv.innerHTML = `
+                    <div class="result">
+                        <h3>✅ Round ${currentRound} Passed!</h3>
+                        <p>Score: ${data.previous_score}%</p>
+                        <p>Moving to Round ${data.current_round}...</p>
+                    </div>
+                `;
+                currentRound = data.current_round;
+                currentQuestions = data.questions || [];  // UPDATE QUESTIONS FOR NEXT ROUND
+                document.getElementById('round-number').textContent = currentRound;
+                displayQuestions(currentQuestions);
+            }
+        }
+        
+        function restartInterview() {
+            currentSession = null;
+            currentRound = 1;
+            currentQuestions = [];  // CLEAR QUESTIONS
+            document.getElementById('setup').style.display = 'block';
+            document.getElementById('interview').style.display = 'none';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('round-number').textContent = '1';
+        }
+    </script>
+</body>
+</html>
